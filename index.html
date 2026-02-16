@@ -44,7 +44,10 @@ h1{margin-bottom:20px;}
 .positive{color:#22c55e;}
 .negative{color:#ef4444;}
 
-canvas{margin-top:20px;}
+.card canvas{
+  width:100% !important;
+  height:350px !important;
+}
 
 select{
   padding:8px 12px;
@@ -73,17 +76,17 @@ th,td{
 <div class="grid">
   <div class="card">
     Total Pemasukan
-    <div id="totalMasuk" class="stat positive">0</div>
+    <div id="totalMasuk" class="stat positive">Rp 0</div>
   </div>
 
   <div class="card">
     Total Pengeluaran
-    <div id="totalKeluar" class="stat negative">0</div>
+    <div id="totalKeluar" class="stat negative">Rp 0</div>
   </div>
 
   <div class="card">
     Saldo Akhir
-    <div id="saldoAkhir" class="stat">0</div>
+    <div id="saldoAkhir" class="stat">Rp 0</div>
   </div>
 </div>
 
@@ -130,6 +133,7 @@ Filter:
 <script>
 
 const sheetURL="https://docs.google.com/spreadsheets/d/e/2PACX-1vRSBdvTbdRKQ1aO6HYM9sHCvAKXjAWKEMWtv_y0PUv4-IE53eqYZcn2SOlLG0kDzM1pgUrEEP-Fwoan/pub?gid=0&single=true&output=csv";
+
 let allData=[];
 
 function fetchData(){
@@ -137,18 +141,26 @@ function fetchData(){
   .then(res=>res.text())
   .then(data=>{
     allData=[];
-    const rows=data.split("\n").slice(1);
+
+    const rows=data.trim().split("\n").slice(1);
 
     rows.forEach(r=>{
+      if(!r) return;
+
       const c=r.split(",");
-      if(c.length>=4){
-        allData.push({
-          tanggal:new Date(c[0]),
-          ket:c[1],
-          masuk:parseInt(c[2])||0,
-          keluar:parseInt(c[3])||0
-        });
-      }
+      if(c.length<4) return;
+
+      const parts=c[0].trim().split("-");
+      if(parts.length!==3) return;
+
+      const tanggalFix=new Date(parts[0],parts[1]-1,parts[2]);
+
+      allData.push({
+        tanggal:tanggalFix,
+        ket:c[1].trim(),
+        masuk:parseInt(c[2].replace(/\D/g,''))||0,
+        keluar:parseInt(c[3].replace(/\D/g,''))||0
+      });
     });
 
     render();
@@ -179,14 +191,8 @@ function render(){
     return true;
   });
 
-  let totalMasuk=0;
-  let totalKeluar=0;
-  let saldo=0;
-
-  let labels=[];
-  let masukData=[];
-  let keluarData=[];
-
+  let totalMasuk=0,totalKeluar=0,saldo=0;
+  let labels=[],masukData=[],keluarData=[];
   let monthly={};
 
   const tbody=document.getElementById("tbody");
@@ -225,54 +231,61 @@ function render(){
   if(window.barChart) window.barChart.destroy();
   if(window.donutChart) window.donutChart.destroy();
 
-  window.lineChart=new Chart(document.getElementById("lineChart"),{
-    type:"line",
-    data:{
-      labels:labels,
-      datasets:[
-        {label:"Pemasukan",data:masukData,borderColor:"#22c55e",tension:0.3},
-        {label:"Pengeluaran",data:keluarData,borderColor:"#ef4444",tension:0.3}
-      ]
-    }
-  });
+  setTimeout(()=>{
 
-  const monthLabels=Object.keys(monthly);
-  const monthMasuk=monthLabels.map(m=>monthly[m].masuk);
-  const monthKeluar=monthLabels.map(m=>monthly[m].keluar);
+    window.lineChart=new Chart(document.getElementById("lineChart"),{
+      type:"line",
+      data:{
+        labels:labels,
+        datasets:[
+          {label:"Pemasukan",data:masukData,borderColor:"#22c55e",tension:0.3},
+          {label:"Pengeluaran",data:keluarData,borderColor:"#ef4444",tension:0.3}
+        ]
+      },
+      options:{responsive:true,maintainAspectRatio:false}
+    });
 
-  window.barChart=new Chart(document.getElementById("barChart"),{
-    type:"bar",
-    data:{
-      labels:monthLabels,
-      datasets:[
-        {label:"Pemasukan",data:monthMasuk,backgroundColor:"#22c55e"},
-        {label:"Pengeluaran",data:monthKeluar,backgroundColor:"#ef4444"}
-      ]
-    }
-  });
+    const monthLabels=Object.keys(monthly);
+    const monthMasuk=monthLabels.map(m=>monthly[m].masuk);
+    const monthKeluar=monthLabels.map(m=>monthly[m].keluar);
 
-  window.donutChart=new Chart(document.getElementById("donutChart"),{
-    type:"doughnut",
-    data:{
-      labels:["Pemasukan","Pengeluaran"],
-      datasets:[{
-        data:[totalMasuk,totalKeluar],
-        backgroundColor:["#22c55e","#ef4444"]
-      }]
-    }
-  });
+    window.barChart=new Chart(document.getElementById("barChart"),{
+      type:"bar",
+      data:{
+        labels:monthLabels,
+        datasets:[
+          {label:"Pemasukan",data:monthMasuk,backgroundColor:"#22c55e"},
+          {label:"Pengeluaran",data:monthKeluar,backgroundColor:"#ef4444"}
+        ]
+      },
+      options:{responsive:true,maintainAspectRatio:false}
+    });
+
+    window.donutChart=new Chart(document.getElementById("donutChart"),{
+      type:"doughnut",
+      data:{
+        labels:["Pemasukan","Pengeluaran"],
+        datasets:[{
+          data:[totalMasuk,totalKeluar],
+          backgroundColor:["#22c55e","#ef4444"]
+        }]
+      },
+      options:{responsive:true,maintainAspectRatio:false}
+    });
+
+  },100);
 }
 
 function animateValue(id,end){
   let start=0;
   const duration=800;
   const range=end-start;
-  const increment=end>start?range/50:-range/50;
+  const increment=range/50;
   const obj=document.getElementById(id);
   let current=start;
   const timer=setInterval(()=>{
     current+=increment;
-    if((increment>0 && current>=end) || (increment<0 && current<=end)){
+    if(current>=end){
       current=end;
       clearInterval(timer);
     }
