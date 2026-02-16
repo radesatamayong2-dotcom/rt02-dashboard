@@ -1,7 +1,8 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard Keuangan RT - PRO MAX PLUS</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -25,7 +26,7 @@ body.light{
 
 body{
   margin:0;
-  font-family:'Segoe UI',sans-serif;
+  font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   background:var(--bg);
   color:var(--text);
   transition:0.3s;
@@ -43,6 +44,7 @@ body{
   gap:10px;
   justify-content:space-between;
   align-items:center;
+  margin-bottom: 20px;
 }
 
 button,select,input{
@@ -51,6 +53,7 @@ button,select,input{
   border:1px solid var(--border);
   background:var(--card);
   color:var(--text);
+  outline: none;
 }
 
 button{
@@ -58,20 +61,24 @@ button{
   background:#3b82f6;
   color:white;
   border:none;
+  transition: 0.2s;
 }
+
+button:hover{ opacity: 0.9; }
 
 .grid{
   display:grid;
   grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
   gap:20px;
-  margin:20px 0;
+  margin-bottom:20px;
 }
 
 .card{
   background:var(--card);
   padding:20px;
   border-radius:20px;
-  box-shadow:0 10px 25px rgba(0,0,0,0.3);
+  box-shadow:0 10px 25px rgba(0,0,0,0.1);
+  margin-bottom: 20px;
 }
 
 .stat{
@@ -83,9 +90,10 @@ button{
 .positive{color:#22c55e;}
 .negative{color:#ef4444;}
 
-canvas{
-  width:100%!important;
-  height:300px!important;
+.chart-container {
+  position: relative;
+  height: 300px;
+  width: 100%;
 }
 
 table{
@@ -95,17 +103,21 @@ table{
 }
 
 th,td{
-  padding:10px;
+  padding:12px;
+  text-align: left;
   border-bottom:1px solid var(--border);
 }
 
-th{background:var(--border);}
+th{background:var(--border); font-weight: 600;}
 
 .controls{
   display:flex;
   gap:10px;
   flex-wrap:wrap;
-  margin-top:10px;
+}
+
+@media (max-width: 768px) {
+  .topbar { flex-direction: column; align-items: stretch; }
 }
 </style>
 </head>
@@ -126,7 +138,6 @@ th{background:var(--border);}
 
     <input type="date" id="fromDate">
     <input type="date" id="toDate">
-
     <input type="text" id="search" placeholder="Cari keterangan...">
 
     <button onclick="toggleTheme()">🌗 Tema</button>
@@ -135,30 +146,49 @@ th{background:var(--border);}
 </div>
 
 <div class="grid">
-  <div class="card">Total Pemasukan<div id="totalMasuk" class="stat positive"></div></div>
-  <div class="card">Total Pengeluaran<div id="totalKeluar" class="stat negative"></div></div>
-  <div class="card">Saldo Akhir<div id="saldoAkhir" class="stat"></div></div>
+  <div class="card">Total Pemasukan<div id="totalMasuk" class="stat positive">Rp 0</div></div>
+  <div class="card">Total Pengeluaran<div id="totalKeluar" class="stat negative">Rp 0</div></div>
+  <div class="card">Saldo Akhir<div id="saldoAkhir" class="stat">Rp 0</div></div>
 </div>
 
-<div class="card"><canvas id="lineChart"></canvas></div>
-<div class="card"><canvas id="saldoChart"></canvas></div>
-<div class="card"><canvas id="barChart"></canvas></div>
-<div class="card"><canvas id="donutChart"></canvas></div>
+<div class="grid">
+  <div class="card">
+    <h3>Tren Arus Kas (Masuk vs Keluar)</h3>
+    <div class="chart-container"><canvas id="lineChart"></canvas></div>
+  </div>
+  <div class="card">
+    <h3>Pertumbuhan Saldo</h3>
+    <div class="chart-container"><canvas id="saldoChart"></canvas></div>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h3>Perbandingan Bulanan</h3>
+    <div class="chart-container"><canvas id="barChart"></canvas></div>
+  </div>
+  <div class="card">
+    <h3>Alokasi Dana</h3>
+    <div class="chart-container"><canvas id="donutChart"></canvas></div>
+  </div>
+</div>
 
 <div class="card">
-<h3>📋 Tabel Transaksi</h3>
-<table>
-<thead>
-<tr>
-<th>Tanggal</th>
-<th>Pemasukan</th>
-<th>Pengeluaran</th>
-<th>Saldo</th>
-<th>Keterangan</th>
-</tr>
-</thead>
-<tbody id="tbody"></tbody>
-</table>
+  <h3>📋 Tabel Transaksi</h3>
+  <div style="overflow-x: auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>Tanggal</th>
+          <th>Pemasukan</th>
+          <th>Pengeluaran</th>
+          <th>Saldo</th>
+          <th>Keterangan</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
 </div>
 
 </div>
@@ -208,7 +238,6 @@ document.getElementById("fromDate").addEventListener("change",render);
 document.getElementById("toDate").addEventListener("change",render);
 
 function render(){
-
   let data=[...allData];
   const filter=document.getElementById("filter").value;
   const search=document.getElementById("search").value.toLowerCase();
@@ -216,6 +245,10 @@ function render(){
   const to=document.getElementById("toDate").value;
   const now=new Date();
 
+  // Sort data by date first
+  data.sort((a,b)=>a.tanggal-b.tanggal);
+
+  // Filter Logic
   data=data.filter(d=>{
     if(filter==="week"){
       const first=new Date();
@@ -224,47 +257,47 @@ function render(){
       if(d.tanggal<first) return false;
     }
     if(filter==="month"){
-      if(d.tanggal.getMonth()!==now.getMonth() ||
-         d.tanggal.getFullYear()!==now.getFullYear()) return false;
+      if(d.tanggal.getMonth()!==now.getMonth() || d.tanggal.getFullYear()!==now.getFullYear()) return false;
     }
     if(filter==="year"){
       if(d.tanggal.getFullYear()!==now.getFullYear()) return false;
     }
-    if(from && d.tanggal<new Date(from)) return false;
-    if(to && d.tanggal>new Date(to)) return false;
+    if(from && d.tanggal < new Date(from)) return false;
+    if(to && d.tanggal > new Date(to)) return false;
     if(search && !d.keterangan.toLowerCase().includes(search)) return false;
     return true;
   });
 
-  let totalMasuk=0,totalKeluar=0,saldo=0;
-  let labels=[],masukArr=[],keluarArr=[],saldoArr=[];
-  let monthly={};
+  let totalMasuk=0, totalKeluar=0, runningSaldo=0;
+  let labels=[], masukArr=[], keluarArr=[], saldoArr=[];
+  let monthlyData={};
+
   const tbody=document.getElementById("tbody");
   tbody.innerHTML="";
-
-  data.sort((a,b)=>a.tanggal-b.tanggal);
 
   data.forEach(d=>{
     totalMasuk+=d.masuk;
     totalKeluar+=d.keluar;
-    saldo+=d.masuk-d.keluar;
+    runningSaldo+=d.masuk-d.keluar;
 
-    labels.push(d.tanggal.toLocaleDateString());
+    const dateStr = d.tanggal.toLocaleDateString('id-ID');
+    labels.push(dateStr);
     masukArr.push(d.masuk);
     keluarArr.push(d.keluar);
-    saldoArr.push(saldo);
+    saldoArr.push(runningSaldo);
 
-    const key=d.tanggal.getFullYear()+"-"+(d.tanggal.getMonth()+1);
-    if(!monthly[key]) monthly[key]={masuk:0,keluar:0};
-    monthly[key].masuk+=d.masuk;
-    monthly[key].keluar+=d.keluar;
+    // Grouping for Bar Chart (Month-Year)
+    const mKey = d.tanggal.toLocaleString('default', { month: 'short', year: '2-digit' });
+    if(!monthlyData[mKey]) monthlyData[mKey] = {masuk:0, keluar:0};
+    monthlyData[mKey].masuk += d.masuk;
+    monthlyData[mKey].keluar += d.keluar;
 
     tbody.innerHTML+=`
       <tr>
-        <td>${d.tanggal.toLocaleDateString()}</td>
+        <td>${dateStr}</td>
         <td class="positive">Rp ${d.masuk.toLocaleString()}</td>
         <td class="negative">Rp ${d.keluar.toLocaleString()}</td>
-        <td>Rp ${saldo.toLocaleString()}</td>
+        <td><b>Rp ${runningSaldo.toLocaleString()}</b></td>
         <td>${d.keterangan}</td>
       </tr>
     `;
@@ -272,36 +305,87 @@ function render(){
 
   document.getElementById("totalMasuk").innerText="Rp "+totalMasuk.toLocaleString();
   document.getElementById("totalKeluar").innerText="Rp "+totalKeluar.toLocaleString();
-  document.getElementById("saldoAkhir").innerText="Rp "+saldo.toLocaleString();
+  document.getElementById("saldoAkhir").innerText="Rp "+runningSaldo.toLocaleString();
 
+  updateCharts(labels, masukArr, keluarArr, saldoArr, monthlyData, totalMasuk, totalKeluar);
+}
+
+function updateCharts(labels, masukArr, keluarArr, saldoArr, monthlyData, totalMasuk, totalKeluar){
   destroyCharts();
 
-  const ctxLine=document.getElementById("lineChart").getContext("2d");
-  charts.line=new Chart(ctxLine,{
-    type:"line",
-    data:{labels:labels,
-      datasets:[
-        {label:"Pemasukan",data:masukArr,borderColor:"#22c55e"},
-        {label:"Pengeluaran",data:keluarArr,borderColor:"#ef4444"}
-      ]},
-    options:{responsive:true,maintainAspectRatio:false}
+  const options = { responsive: true, maintainAspectRatio: false };
+
+  // 1. Line Chart (Masuk vs Keluar)
+  charts.line = new Chart(document.getElementById("lineChart"), {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        { label: 'Masuk', data: masukArr, borderColor: '#22c55e', backgroundColor: '#22c55e33', fill: true, tension: 0.3 },
+        { label: 'Keluar', data: keluarArr, borderColor: '#ef4444', backgroundColor: '#ef444433', fill: true, tension: 0.3 }
+      ]
+    },
+    options: options
+  });
+
+  // 2. Saldo Chart (Cumulative)
+  charts.saldo = new Chart(document.getElementById("saldoChart"), {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{ label: 'Saldo', data: saldoArr, borderColor: '#3b82f6', backgroundColor: '#3b82f633', fill: true, tension: 0.1 }]
+    },
+    options: options
+  });
+
+  // 3. Bar Chart (Monthly)
+  const mLabels = Object.keys(monthlyData);
+  charts.bar = new Chart(document.getElementById("barChart"), {
+    type: 'bar',
+    data: {
+      labels: mLabels,
+      datasets: [
+        { label: 'Masuk', data: mLabels.map(m => monthlyData[m].masuk), backgroundColor: '#22c55e' },
+        { label: 'Keluar', data: mLabels.map(m => monthlyData[m].keluar), backgroundColor: '#ef4444' }
+      ]
+    },
+    options: options
+  });
+
+  // 4. Donut Chart (Allocation)
+  charts.donut = new Chart(document.getElementById("donutChart"), {
+    type: 'doughnut',
+    data: {
+      labels: ['Total Pemasukan', 'Total Pengeluaran'],
+      datasets: [{
+        data: [totalMasuk, totalKeluar],
+        backgroundColor: ['#22c55e', '#ef4444'],
+        borderWidth: 0
+      }]
+    },
+    options: options
   });
 }
 
 function destroyCharts(){
-  Object.values(charts).forEach(c=>{
-    if(c instanceof Chart) c.destroy();
-  });
+  Object.values(charts).forEach(c => { if(c instanceof Chart) c.destroy(); });
   charts={};
 }
 
 function exportPDF(){
-  html2pdf().from(document.getElementById("dashboard"))
-    .save("Laporan_Keuangan_RT.pdf");
+  const element = document.getElementById("dashboard");
+  const opt = {
+    margin: 10,
+    filename: 'Laporan_Keuangan_RT.pdf',
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+  };
+  html2pdf().set(opt).from(element).save();
 }
 
 loadData();
-setInterval(loadData,60000);
+setInterval(loadData, 60000);
 </script>
 
 </body>
