@@ -2,14 +2,16 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Dashboard RT 02 RW 03</title>
+<title>Dashboard Keuangan RT</title>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
 <style>
 body{
   margin:0;
-  font-family:'Segoe UI',sans-serif;
-  background:linear-gradient(135deg,#0f172a,#1e293b);
+  font-family: 'Segoe UI', sans-serif;
+  background: linear-gradient(135deg,#0f172a,#1e293b);
   color:white;
 }
 
@@ -32,7 +34,8 @@ h1{margin-bottom:20px;}
   background:#1e293b;
   padding:20px;
   border-radius:20px;
-  box-shadow:0 10px 30px rgba(0,0,0,0.4);
+  box-shadow:0 10px 25px rgba(0,0,0,0.4);
+  position:relative;
 }
 
 .stat{
@@ -44,49 +47,49 @@ h1{margin-bottom:20px;}
 .positive{color:#22c55e;}
 .negative{color:#ef4444;}
 
-.card canvas{
-  width:100% !important;
-  height:350px !important;
-}
-
 select{
   padding:8px 12px;
   border-radius:10px;
   border:none;
 }
 
-table{
-  width:100%;
-  border-collapse:collapse;
-  margin-top:15px;
+canvas{
+  width:100% !important;
+  height:320px !important;
 }
 
-th,td{
-  padding:10px;
-  border-bottom:1px solid #334155;
+.skeleton{
+  background: linear-gradient(90deg,#1e293b 25%,#334155 50%,#1e293b 75%);
+  background-size:200% 100%;
+  animation: loading 1.5s infinite;
+  border-radius:10px;
+  height:25px;
+}
+
+@keyframes loading{
+  0%{background-position:200% 0;}
+  100%{background-position:-200% 0;}
 }
 </style>
 </head>
-<body>
 
+<body>
 <div class="container">
 
-<h1>💳 Dashboard Keuangan RT 02 RW 03</h1>
+<h1>💳 Dashboard Keuangan RT</h1>
 
 <div class="grid">
   <div class="card">
     Total Pemasukan
-    <div id="totalMasuk" class="stat positive">Rp 0</div>
+    <div id="totalMasuk" class="stat positive skeleton"></div>
   </div>
-
   <div class="card">
     Total Pengeluaran
-    <div id="totalKeluar" class="stat negative">Rp 0</div>
+    <div id="totalKeluar" class="stat negative skeleton"></div>
   </div>
-
   <div class="card">
     Saldo Akhir
-    <div id="saldoAkhir" class="stat">Rp 0</div>
+    <div id="saldoAkhir" class="stat skeleton"></div>
   </div>
 </div>
 
@@ -100,86 +103,43 @@ Filter:
 </select>
 </div>
 
-<div class="card">
-  <canvas id="lineChart"></canvas>
-</div>
-
-<div class="card">
-  <canvas id="barChart"></canvas>
-</div>
-
-<div class="card">
-  <canvas id="donutChart"></canvas>
-</div>
-
-<div class="card">
-<h3>📋 Tabel Keuangan</h3>
-<table>
-<thead>
-<tr>
-<th>Tanggal</th>
-<th>Keterangan</th>
-<th>Pemasukan</th>
-<th>Pengeluaran</th>
-<th>Saldo</th>
-</tr>
-</thead>
-<tbody id="tbody"></tbody>
-</table>
-</div>
+<div class="card"><canvas id="lineChart"></canvas></div>
+<div class="card"><canvas id="saldoChart"></canvas></div>
+<div class="card"><canvas id="barChart"></canvas></div>
+<div class="card"><canvas id="donutChart"></canvas></div>
 
 </div>
 
 <script>
+const sheetURL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRSBdvTbdRKQ1aO6HYM9sHCvAKXjAWKEMWtv_y0PUv4-IE53eqYZcn2SOlLG0kDzM1pgUrEEP-Fwoan/pub?gid=0&single=true&output=csv";
 
-const sheetURL="https://docs.google.com/spreadsheets/d/e/2PACX-1vRSBdvTbdRKQ1aO6HYM9sHCvAKXjAWKEMWtv_y0PUv4-IE53eqYZcn2SOlLG0kDzM1pgUrEEP-Fwoan/pub?gid=0&single=true&output=csv";
+window.lineChart=null;
+window.barChart=null;
+window.donutChart=null;
+window.saldoChart=null;
 
 let allData=[];
 
-function fetchData(){
-  fetch(sheetURL)
-  .then(res=>res.text())
-  .then(data=>{
-    allData=[];
+function loadData(){
+  Papa.parse(sheetURL,{
+    download:true,
+    header:true,
+    skipEmptyLines:true,
+    complete:function(results){
+      allData=[];
+      results.data.forEach(r=>{
+        if(!r.tanggal) return;
+        const t=new Date(r.tanggal.trim());
+        if(isNaN(t)) return;
 
-    const rows=data.trim().split("\n").slice(1);
-
-    rows.forEach(r=>{
-  if(!r.trim()) return;
-
-  const c=r.split(",");
-
-  // pastikan minimal 4 kolom
-  while(c.length < 4){
-    c.push("0");
-  }
-
-  const tanggalStr = (c[0] || "").trim();
-  const ket = (c[1] || "").trim();
-
-  if(!tanggalStr) return;
-
-  const parts = tanggalStr.split("-");
-  if(parts.length !== 3) return;
-
-  const tanggalFix = new Date(
-    parseInt(parts[0]),
-    parseInt(parts[1]) - 1,
-    parseInt(parts[2])
-  );
-
-  const masuk = parseInt((c[2] || "0").replace(/\D/g,'')) || 0;
-  const keluar = parseInt((c[3] || "0").replace(/\D/g,'')) || 0;
-
-  allData.push({
-    tanggal: tanggalFix,
-    ket: ket,
-    masuk: masuk,
-    keluar: keluar
-  });
-});
-
-    render();
+        allData.push({
+          tanggal:t,
+          masuk:parseInt((r.pemasukan||"0").replace(/\D/g,''))||0,
+          keluar:parseInt((r.pengeluaran||"0").replace(/\D/g,''))||0
+        });
+      });
+      render();
+    }
   });
 }
 
@@ -192,10 +152,10 @@ function render(){
 
   let data=allData.filter(d=>{
     if(filter==="week"){
-      const firstDay=new Date();
-      firstDay.setDate(now.getDate()-now.getDay());
-      firstDay.setHours(0,0,0,0);
-      return d.tanggal>=firstDay;
+      const first=new Date();
+      first.setDate(now.getDate()-now.getDay());
+      first.setHours(0,0,0,0);
+      return d.tanggal>=first;
     }
     if(filter==="month"){
       return d.tanggal.getMonth()===now.getMonth() &&
@@ -208,11 +168,8 @@ function render(){
   });
 
   let totalMasuk=0,totalKeluar=0,saldo=0;
-  let labels=[],masukData=[],keluarData=[];
+  let labels=[],masukArr=[],keluarArr=[],saldoArr=[];
   let monthly={};
-
-  const tbody=document.getElementById("tbody");
-  tbody.innerHTML="";
 
   data.forEach(d=>{
     totalMasuk+=d.masuk;
@@ -220,64 +177,64 @@ function render(){
     saldo+=d.masuk-d.keluar;
 
     labels.push(d.tanggal.toLocaleDateString());
-    masukData.push(d.masuk);
-    keluarData.push(d.keluar);
+    masukArr.push(d.masuk);
+    keluarArr.push(d.keluar);
+    saldoArr.push(saldo);
 
-    const bulan=d.tanggal.getFullYear()+"-"+(d.tanggal.getMonth()+1);
-    if(!monthly[bulan]) monthly[bulan]={masuk:0,keluar:0};
-    monthly[bulan].masuk+=d.masuk;
-    monthly[bulan].keluar+=d.keluar;
-
-    tbody.innerHTML+=`
-      <tr>
-        <td>${d.tanggal.toLocaleDateString()}</td>
-        <td>${d.ket}</td>
-        <td class="positive">Rp ${d.masuk.toLocaleString()}</td>
-        <td class="negative">Rp ${d.keluar.toLocaleString()}</td>
-        <td>Rp ${saldo.toLocaleString()}</td>
-      </tr>
-    `;
+    const key=d.tanggal.getFullYear()+"-"+(d.tanggal.getMonth()+1);
+    if(!monthly[key]) monthly[key]={masuk:0,keluar:0};
+    monthly[key].masuk+=d.masuk;
+    monthly[key].keluar+=d.keluar;
   });
 
-  animateValue("totalMasuk",totalMasuk);
-  animateValue("totalKeluar",totalKeluar);
-  animateValue("saldoAkhir",saldo);
+  animateNumber("totalMasuk",totalMasuk,true);
+  animateNumber("totalKeluar",totalKeluar,true);
+  animateNumber("saldoAkhir",saldo,false);
 
-  if(window.lineChart) window.lineChart.destroy();
-  if(window.barChart) window.barChart.destroy();
-  if(window.donutChart) window.donutChart.destroy();
+  destroyCharts();
 
   setTimeout(()=>{
 
-    window.lineChart=new Chart(document.getElementById("lineChart"),{
+    window.lineChart=new Chart(lineChart,{
       type:"line",
       data:{
         labels:labels,
         datasets:[
-          {label:"Pemasukan",data:masukData,borderColor:"#22c55e",tension:0.3},
-          {label:"Pengeluaran",data:keluarData,borderColor:"#ef4444",tension:0.3}
+          {label:"Pemasukan",data:masukArr,borderColor:"#22c55e",tension:0.3},
+          {label:"Pengeluaran",data:keluarArr,borderColor:"#ef4444",tension:0.3}
         ]
       },
       options:{responsive:true,maintainAspectRatio:false}
     });
 
-    const monthLabels=Object.keys(monthly);
-    const monthMasuk=monthLabels.map(m=>monthly[m].masuk);
-    const monthKeluar=monthLabels.map(m=>monthly[m].keluar);
+    window.saldoChart=new Chart(saldoChart,{
+      type:"line",
+      data:{
+        labels:labels,
+        datasets:[
+          {label:"Saldo Kumulatif",data:saldoArr,borderColor:"#3b82f6",tension:0.3}
+        ]
+      },
+      options:{responsive:true,maintainAspectRatio:false}
+    });
 
-    window.barChart=new Chart(document.getElementById("barChart"),{
+    const mLabels=Object.keys(monthly);
+    const mMasuk=mLabels.map(m=>monthly[m].masuk);
+    const mKeluar=mLabels.map(m=>monthly[m].keluar);
+
+    window.barChart=new Chart(barChart,{
       type:"bar",
       data:{
-        labels:monthLabels,
+        labels:mLabels,
         datasets:[
-          {label:"Pemasukan",data:monthMasuk,backgroundColor:"#22c55e"},
-          {label:"Pengeluaran",data:monthKeluar,backgroundColor:"#ef4444"}
+          {label:"Pemasukan",data:mMasuk,backgroundColor:"#22c55e"},
+          {label:"Pengeluaran",data:mKeluar,backgroundColor:"#ef4444"}
         ]
       },
       options:{responsive:true,maintainAspectRatio:false}
     });
 
-    window.donutChart=new Chart(document.getElementById("donutChart"),{
+    window.donutChart=new Chart(donutChart,{
       type:"doughnut",
       data:{
         labels:["Pemasukan","Pengeluaran"],
@@ -289,29 +246,35 @@ function render(){
       options:{responsive:true,maintainAspectRatio:false}
     });
 
-  },100);
+  },200);
 }
 
-function animateValue(id,end){
+function destroyCharts(){
+  if(window.lineChart instanceof Chart) window.lineChart.destroy();
+  if(window.barChart instanceof Chart) window.barChart.destroy();
+  if(window.donutChart instanceof Chart) window.donutChart.destroy();
+  if(window.saldoChart instanceof Chart) window.saldoChart.destroy();
+}
+
+function animateNumber(id,value,isPositive){
+  const el=document.getElementById(id);
+  el.classList.remove("skeleton");
+
   let start=0;
   const duration=800;
-  const range=end-start;
-  const increment=range/50;
-  const obj=document.getElementById(id);
-  let current=start;
+  const increment=value/40;
   const timer=setInterval(()=>{
-    current+=increment;
-    if(current>=end){
-      current=end;
+    start+=increment;
+    if(start>=value){
+      start=value;
       clearInterval(timer);
     }
-    obj.innerHTML="Rp "+Math.floor(current).toLocaleString();
-  },duration/50);
+    el.innerHTML="Rp "+Math.floor(start).toLocaleString();
+  },duration/40);
 }
 
-fetchData();
-setInterval(fetchData,60000);
-
+loadData();
+setInterval(loadData,60000);
 </script>
 
 </body>
