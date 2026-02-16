@@ -2,28 +2,24 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>RT 02 Dashboard</title>
+<title>Dashboard RT 02 RW 03</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <style>
 body{
   margin:0;
-  font-family: 'Segoe UI', sans-serif;
+  font-family:'Segoe UI',sans-serif;
   background:linear-gradient(135deg,#0f172a,#1e293b);
   color:white;
 }
 
 .container{
-  max-width:1200px;
+  max-width:1300px;
   margin:auto;
   padding:25px;
 }
 
-h1{
-  font-weight:600;
-  margin-bottom:20px;
-}
+h1{margin-bottom:20px;}
 
 .grid{
   display:grid;
@@ -40,7 +36,7 @@ h1{
 }
 
 .stat{
-  font-size:24px;
+  font-size:26px;
   font-weight:bold;
   margin-top:10px;
 }
@@ -48,42 +44,24 @@ h1{
 .positive{color:#22c55e;}
 .negative{color:#ef4444;}
 
-.skeleton{
-  background:linear-gradient(90deg,#1e293b 25%,#334155 50%,#1e293b 75%);
-  background-size:200% 100%;
-  animation:loading 1.5s infinite;
-  height:20px;
-  border-radius:8px;
-}
+canvas{margin-top:20px;}
 
-@keyframes loading{
-  0%{background-position:200% 0}
-  100%{background-position:-200% 0}
+select{
+  padding:8px 12px;
+  border-radius:10px;
+  border:none;
 }
 
 table{
   width:100%;
   border-collapse:collapse;
-  margin-top:10px;
+  margin-top:15px;
 }
 
 th,td{
   padding:10px;
   border-bottom:1px solid #334155;
 }
-
-button,select{
-  padding:8px 12px;
-  border:none;
-  border-radius:10px;
-  margin-right:10px;
-}
-
-button{
-  background:#38bdf8;
-  cursor:pointer;
-}
-
 </style>
 </head>
 <body>
@@ -95,17 +73,17 @@ button{
 <div class="grid">
   <div class="card">
     Total Pemasukan
-    <div id="totalMasuk" class="stat skeleton"></div>
+    <div id="totalMasuk" class="stat positive">0</div>
   </div>
 
   <div class="card">
     Total Pengeluaran
-    <div id="totalKeluar" class="stat skeleton"></div>
+    <div id="totalKeluar" class="stat negative">0</div>
   </div>
 
   <div class="card">
     Saldo Akhir
-    <div id="saldoAkhir" class="stat skeleton"></div>
+    <div id="saldoAkhir" class="stat">0</div>
   </div>
 </div>
 
@@ -117,12 +95,18 @@ Filter:
   <option value="month">Bulan Ini</option>
   <option value="year">Tahun Ini</option>
 </select>
-
-<button onclick="exportPDF()">Export PDF</button>
 </div>
 
 <div class="card">
-<canvas id="chartKeuangan"></canvas>
+  <canvas id="lineChart"></canvas>
+</div>
+
+<div class="card">
+  <canvas id="barChart"></canvas>
+</div>
+
+<div class="card">
+  <canvas id="donutChart"></canvas>
 </div>
 
 <div class="card">
@@ -145,18 +129,18 @@ Filter:
 
 <script>
 
-const sheetURL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRSBdvTbdRKQ1aO6HYM9sHCvAKXjAWKEMWtv_y0PUv4-IE53eqYZcn2SOlLG0kDzM1pgUrEEP-Fwoan/pub?gid=0&single=true&output=csv";
-let allData = [];
+const sheetURL="https://docs.google.com/spreadsheets/d/e/2PACX-1vRSBdvTbdRKQ1aO6HYM9sHCvAKXjAWKEMWtv_y0PUv4-IE53eqYZcn2SOlLG0kDzM1pgUrEEP-Fwoan/pub?gid=0&single=true&output=csv%22;";
+let allData=[];
 
 function fetchData(){
   fetch(sheetURL)
   .then(res=>res.text())
   .then(data=>{
     allData=[];
-    const rows = data.split("\n").slice(1);
+    const rows=data.split("\n").slice(1);
 
     rows.forEach(r=>{
-      const c = r.split(",");
+      const c=r.split(",");
       if(c.length>=4){
         allData.push({
           tanggal:new Date(c[0]),
@@ -175,40 +159,38 @@ document.getElementById("filter").addEventListener("change",render);
 
 function render(){
 
-  const filter = document.getElementById("filter").value;
-  const now = new Date();
+  const filter=document.getElementById("filter").value;
+  const now=new Date();
 
-  let data = allData.filter(d=>{
-  if(filter==="week"){
-    const today = new Date();
-    const firstDay = new Date(today);
-    firstDay.setDate(today.getDate() - today.getDay()); 
-    firstDay.setHours(0,0,0,0);
-    return d.tanggal >= firstDay;
-  }
-
-  if(filter==="month"){
-    return d.tanggal.getMonth()===now.getMonth() &&
-           d.tanggal.getFullYear()===now.getFullYear();
-  }
-
-  if(filter==="year"){
-    return d.tanggal.getFullYear()===now.getFullYear();
-  }
-
-  return true;
-});
+  let data=allData.filter(d=>{
+    if(filter==="week"){
+      const firstDay=new Date();
+      firstDay.setDate(now.getDate()-now.getDay());
+      firstDay.setHours(0,0,0,0);
+      return d.tanggal>=firstDay;
+    }
+    if(filter==="month"){
+      return d.tanggal.getMonth()===now.getMonth() &&
+             d.tanggal.getFullYear()===now.getFullYear();
+    }
+    if(filter==="year"){
+      return d.tanggal.getFullYear()===now.getFullYear();
+    }
+    return true;
+  });
 
   let totalMasuk=0;
   let totalKeluar=0;
   let saldo=0;
 
-  const tbody=document.getElementById("tbody");
-  tbody.innerHTML="";
-
   let labels=[];
   let masukData=[];
   let keluarData=[];
+
+  let monthly={};
+
+  const tbody=document.getElementById("tbody");
+  tbody.innerHTML="";
 
   data.forEach(d=>{
     totalMasuk+=d.masuk;
@@ -218,6 +200,11 @@ function render(){
     labels.push(d.tanggal.toLocaleDateString());
     masukData.push(d.masuk);
     keluarData.push(d.keluar);
+
+    const bulan=d.tanggal.getFullYear()+"-"+(d.tanggal.getMonth()+1);
+    if(!monthly[bulan]) monthly[bulan]={masuk:0,keluar:0};
+    monthly[bulan].masuk+=d.masuk;
+    monthly[bulan].keluar+=d.keluar;
 
     tbody.innerHTML+=`
       <tr>
@@ -230,47 +217,67 @@ function render(){
     `;
   });
 
-  document.getElementById("totalMasuk").classList.remove("skeleton");
-  document.getElementById("totalKeluar").classList.remove("skeleton");
-  document.getElementById("saldoAkhir").classList.remove("skeleton");
+  animateValue("totalMasuk",totalMasuk);
+  animateValue("totalKeluar",totalKeluar);
+  animateValue("saldoAkhir",saldo);
 
-  document.getElementById("totalMasuk").innerHTML="Rp "+totalMasuk.toLocaleString();
-  document.getElementById("totalKeluar").innerHTML="Rp "+totalKeluar.toLocaleString();
-  document.getElementById("saldoAkhir").innerHTML="Rp "+saldo.toLocaleString();
+  if(window.lineChart) window.lineChart.destroy();
+  if(window.barChart) window.barChart.destroy();
+  if(window.donutChart) window.donutChart.destroy();
 
-  if(window.chart) window.chart.destroy();
-
-  window.chart=new Chart(
-    document.getElementById("chartKeuangan"),
-    {
-      type:"line",
-      data:{
-        labels:labels,
-        datasets:[
-          {
-            label:"Pemasukan",
-            data:masukData,
-            borderColor:"#22c55e",
-            tension:0.3
-          },
-          {
-            label:"Pengeluaran",
-            data:keluarData,
-            borderColor:"#ef4444",
-            tension:0.3
-          }
-        ]
-      }
+  window.lineChart=new Chart(document.getElementById("lineChart"),{
+    type:"line",
+    data:{
+      labels:labels,
+      datasets:[
+        {label:"Pemasukan",data:masukData,borderColor:"#22c55e",tension:0.3},
+        {label:"Pengeluaran",data:keluarData,borderColor:"#ef4444",tension:0.3}
+      ]
     }
-  );
+  });
+
+  const monthLabels=Object.keys(monthly);
+  const monthMasuk=monthLabels.map(m=>monthly[m].masuk);
+  const monthKeluar=monthLabels.map(m=>monthly[m].keluar);
+
+  window.barChart=new Chart(document.getElementById("barChart"),{
+    type:"bar",
+    data:{
+      labels:monthLabels,
+      datasets:[
+        {label:"Pemasukan",data:monthMasuk,backgroundColor:"#22c55e"},
+        {label:"Pengeluaran",data:monthKeluar,backgroundColor:"#ef4444"}
+      ]
+    }
+  });
+
+  window.donutChart=new Chart(document.getElementById("donutChart"),{
+    type:"doughnut",
+    data:{
+      labels:["Pemasukan","Pengeluaran"],
+      datasets:[{
+        data:[totalMasuk,totalKeluar],
+        backgroundColor:["#22c55e","#ef4444"]
+      }]
+    }
+  });
 }
 
-function exportPDF(){
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-  doc.text("Laporan Keuangan RT 02 RW 03",10,10);
-  doc.text("Generated: "+new Date().toLocaleString(),10,20);
-  doc.save("laporan-rt02.pdf");
+function animateValue(id,end){
+  let start=0;
+  const duration=800;
+  const range=end-start;
+  const increment=end>start?range/50:-range/50;
+  const obj=document.getElementById(id);
+  let current=start;
+  const timer=setInterval(()=>{
+    current+=increment;
+    if((increment>0 && current>=end) || (increment<0 && current<=end)){
+      current=end;
+      clearInterval(timer);
+    }
+    obj.innerHTML="Rp "+Math.floor(current).toLocaleString();
+  },duration/50);
 }
 
 fetchData();
