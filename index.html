@@ -2,18 +2,33 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Dashboard Keuangan RT - PRO MAX</title>
+<title>Dashboard Keuangan RT - PRO MAX PLUS</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
 <style>
+:root{
+  --bg:#0f172a;
+  --card:#1e293b;
+  --text:#ffffff;
+  --border:#334155;
+}
+
+body.light{
+  --bg:#f1f5f9;
+  --card:#ffffff;
+  --text:#0f172a;
+  --border:#e2e8f0;
+}
+
 body{
   margin:0;
   font-family:'Segoe UI',sans-serif;
-  background:linear-gradient(135deg,#0f172a,#1e293b);
-  color:white;
+  background:var(--bg);
+  color:var(--text);
+  transition:0.3s;
 }
 
 .container{
@@ -24,19 +39,25 @@ body{
 
 .topbar{
   display:flex;
-  justify-content:space-between;
-  align-items:center;
   flex-wrap:wrap;
   gap:10px;
+  justify-content:space-between;
+  align-items:center;
+}
+
+button,select,input{
+  padding:8px 12px;
+  border-radius:10px;
+  border:1px solid var(--border);
+  background:var(--card);
+  color:var(--text);
 }
 
 button{
-  padding:10px 15px;
-  border:none;
-  border-radius:10px;
+  cursor:pointer;
   background:#3b82f6;
   color:white;
-  cursor:pointer;
+  border:none;
 }
 
 .grid{
@@ -47,12 +68,10 @@ button{
 }
 
 .card{
-  background:#1e293b;
+  background:var(--card);
   padding:20px;
   border-radius:20px;
-  box-shadow:0 10px 30px rgba(0,0,0,0.4);
-  position:relative;
-  min-height:120px;
+  box-shadow:0 10px 25px rgba(0,0,0,0.3);
 }
 
 .stat{
@@ -69,12 +88,6 @@ canvas{
   height:300px!important;
 }
 
-select{
-  padding:8px 12px;
-  border-radius:10px;
-  border:none;
-}
-
 table{
   width:100%;
   border-collapse:collapse;
@@ -83,20 +96,16 @@ table{
 
 th,td{
   padding:10px;
-  border-bottom:1px solid #334155;
+  border-bottom:1px solid var(--border);
 }
 
-th{background:#334155;}
+th{background:var(--border);}
 
-.loading{
-  position:absolute;
-  inset:0;
+.controls{
   display:flex;
-  align-items:center;
-  justify-content:center;
-  background:rgba(15,23,42,0.8);
-  border-radius:20px;
-  font-size:14px;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-top:10px;
 }
 </style>
 </head>
@@ -106,14 +115,21 @@ th{background:#334155;}
 <div class="container" id="dashboard">
 
 <div class="topbar">
-  <h1>💳 Dashboard Keuangan RT</h1>
-  <div>
+  <h2>💳 Dashboard Keuangan RT</h2>
+  <div class="controls">
     <select id="filter">
       <option value="all">Semua</option>
       <option value="week">Minggu Ini</option>
       <option value="month">Bulan Ini</option>
       <option value="year">Tahun Ini</option>
     </select>
+
+    <input type="date" id="fromDate">
+    <input type="date" id="toDate">
+
+    <input type="text" id="search" placeholder="Cari keterangan...">
+
+    <button onclick="toggleTheme()">🌗 Tema</button>
     <button onclick="exportPDF()">Export PDF</button>
   </div>
 </div>
@@ -138,6 +154,7 @@ th{background:#334155;}
 <th>Pemasukan</th>
 <th>Pengeluaran</th>
 <th>Saldo</th>
+<th>Keterangan</th>
 </tr>
 </thead>
 <tbody id="tbody"></tbody>
@@ -147,37 +164,26 @@ th{background:#334155;}
 </div>
 
 <script>
-const sheetURL="https://docs.google.com/spreadsheets/d/e/2PACX-1vRSBdvTbdRKQ1aO6HYM9sHCvAKXjAWKEMWtv_y0PUv4-IE53eqYZcn2SOlLG0kDzM1pgUrEEP-Fwoan/pub?gid=0&single=true&output=csv";
+const sheetURL="https://docs.google.com/spreadsheets/d/e/2PACX-1vRSBdvTbdRKQ1aO6HYM9sHCvAKXjAWKEMWtv_y0PUv4-IE53eqYZcn2SOlLG0kDzM1pgUrEEP-Fwoan/pub?gid=0&single=true&output=csv%22";
 
-let charts = {};
+let charts={};
 let allData=[];
-let refreshTimer=null;
 
-function showLoading(show){
-  document.querySelectorAll(".card").forEach(card=>{
-    let l=card.querySelector(".loading");
-    if(show){
-      if(!l){
-        l=document.createElement("div");
-        l.className="loading";
-        l.innerText="Loading data...";
-        card.appendChild(l);
-      }
-    }else{
-      if(l) l.remove();
-    }
-  });
+function toggleTheme(){
+  document.body.classList.toggle("light");
+  localStorage.setItem("theme",document.body.classList.contains("light")?"light":"dark");
+}
+
+if(localStorage.getItem("theme")==="light"){
+  document.body.classList.add("light");
 }
 
 function loadData(){
-  showLoading(true);
-
   Papa.parse(sheetURL,{
     download:true,
     header:true,
     skipEmptyLines:true,
     complete:function(results){
-
       allData=[];
       results.data.forEach(r=>{
         if(!r.tanggal) return;
@@ -187,51 +193,52 @@ function loadData(){
         allData.push({
           tanggal:t,
           masuk:parseInt((r.pemasukan||"0").replace(/\D/g,''))||0,
-          keluar:parseInt((r.pengeluaran||"0").replace(/\D/g,''))||0
+          keluar:parseInt((r.pengeluaran||"0").replace(/\D/g,''))||0,
+          keterangan:(r.keterangan||"-").trim()
         });
       });
-
       render();
-      showLoading(false);
     }
   });
 }
 
 document.getElementById("filter").addEventListener("change",render);
+document.getElementById("search").addEventListener("input",render);
+document.getElementById("fromDate").addEventListener("change",render);
+document.getElementById("toDate").addEventListener("change",render);
 
 function render(){
 
-  if(!allData.length){
-    document.getElementById("tbody").innerHTML=
-      `<tr><td colspan="4" style="text-align:center">Tidak ada data</td></tr>`;
-    destroyCharts();
-    return;
-  }
-
+  let data=[...allData];
   const filter=document.getElementById("filter").value;
+  const search=document.getElementById("search").value.toLowerCase();
+  const from=document.getElementById("fromDate").value;
+  const to=document.getElementById("toDate").value;
   const now=new Date();
 
-  let data=allData.filter(d=>{
+  data=data.filter(d=>{
     if(filter==="week"){
       const first=new Date();
       first.setDate(now.getDate()-now.getDay());
       first.setHours(0,0,0,0);
-      return d.tanggal>=first;
+      if(d.tanggal<first) return false;
     }
     if(filter==="month"){
-      return d.tanggal.getMonth()===now.getMonth() &&
-             d.tanggal.getFullYear()===now.getFullYear();
+      if(d.tanggal.getMonth()!==now.getMonth() ||
+         d.tanggal.getFullYear()!==now.getFullYear()) return false;
     }
     if(filter==="year"){
-      return d.tanggal.getFullYear()===now.getFullYear();
+      if(d.tanggal.getFullYear()!==now.getFullYear()) return false;
     }
+    if(from && d.tanggal<new Date(from)) return false;
+    if(to && d.tanggal>new Date(to)) return false;
+    if(search && !d.keterangan.toLowerCase().includes(search)) return false;
     return true;
   });
 
   let totalMasuk=0,totalKeluar=0,saldo=0;
   let labels=[],masukArr=[],keluarArr=[],saldoArr=[];
   let monthly={};
-
   const tbody=document.getElementById("tbody");
   tbody.innerHTML="";
 
@@ -258,6 +265,7 @@ function render(){
         <td class="positive">Rp ${d.masuk.toLocaleString()}</td>
         <td class="negative">Rp ${d.keluar.toLocaleString()}</td>
         <td>Rp ${saldo.toLocaleString()}</td>
+        <td>${d.keterangan}</td>
       </tr>
     `;
   });
@@ -269,49 +277,14 @@ function render(){
   destroyCharts();
 
   const ctxLine=document.getElementById("lineChart").getContext("2d");
-  const ctxSaldo=document.getElementById("saldoChart").getContext("2d");
-  const ctxBar=document.getElementById("barChart").getContext("2d");
-  const ctxDonut=document.getElementById("donutChart").getContext("2d");
-
-  const gradient=ctxLine.createLinearGradient(0,0,0,300);
-  gradient.addColorStop(0,"rgba(34,197,94,0.6)");
-  gradient.addColorStop(1,"rgba(34,197,94,0)");
-
   charts.line=new Chart(ctxLine,{
     type:"line",
     data:{labels:labels,
-      datasets:[{label:"Pemasukan",data:masukArr,fill:true,backgroundColor:gradient,borderColor:"#22c55e"},
-                {label:"Pengeluaran",data:keluarArr,borderColor:"#ef4444"}]},
-    options:{responsive:true,maintainAspectRatio:false}
-  });
-
-  charts.saldo=new Chart(ctxSaldo,{
-    type:"line",
-    data:{labels:labels,
-      datasets:[{label:"Saldo",data:saldoArr,borderColor:"#3b82f6"}]},
-    options:{responsive:true,maintainAspectRatio:false}
-  });
-
-  const mLabels=Object.keys(monthly);
-  charts.bar=new Chart(ctxBar,{
-    type:"bar",
-    data:{labels:mLabels,
       datasets:[
-        {label:"Masuk",data:mLabels.map(m=>monthly[m].masuk),backgroundColor:"#22c55e"},
-        {label:"Keluar",data:mLabels.map(m=>monthly[m].keluar),backgroundColor:"#ef4444"}
+        {label:"Pemasukan",data:masukArr,borderColor:"#22c55e"},
+        {label:"Pengeluaran",data:keluarArr,borderColor:"#ef4444"}
       ]},
     options:{responsive:true,maintainAspectRatio:false}
-  });
-
-  charts.donut=new Chart(ctxDonut,{
-    type:"doughnut",
-    data:{
-      labels:["Masuk","Keluar"],
-      datasets:[{
-        data:[totalMasuk,totalKeluar],
-        backgroundColor:["#22c55e","#ef4444"]
-      }]
-    }
   });
 }
 
@@ -328,9 +301,7 @@ function exportPDF(){
 }
 
 loadData();
-
-if(refreshTimer) clearInterval(refreshTimer);
-refreshTimer=setInterval(loadData,60000);
+setInterval(loadData,60000);
 </script>
 
 </body>
