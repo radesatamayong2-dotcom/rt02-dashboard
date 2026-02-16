@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Dashboard Keuangan RT</title>
+<title>Dashboard Keuangan RT - PRO MAX</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
@@ -21,8 +21,6 @@ body{
   margin:auto;
   padding:25px;
 }
-
-h1{margin-bottom:10px;}
 
 .topbar{
   display:flex;
@@ -53,6 +51,8 @@ button{
   padding:20px;
   border-radius:20px;
   box-shadow:0 10px 30px rgba(0,0,0,0.4);
+  position:relative;
+  min-height:120px;
 }
 
 .stat{
@@ -88,17 +88,15 @@ th,td{
 
 th{background:#334155;}
 
-.skeleton{
-  background: linear-gradient(90deg,#1e293b 25%,#334155 50%,#1e293b 75%);
-  background-size:200% 100%;
-  animation: loading 1.5s infinite;
-  border-radius:10px;
-  height:25px;
-}
-
-@keyframes loading{
-  0%{background-position:200% 0;}
-  100%{background-position:-200% 0;}
+.loading{
+  position:absolute;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:rgba(15,23,42,0.8);
+  border-radius:20px;
+  font-size:14px;
 }
 </style>
 </head>
@@ -121,18 +119,9 @@ th{background:#334155;}
 </div>
 
 <div class="grid">
-  <div class="card">
-    Total Pemasukan
-    <div id="totalMasuk" class="stat positive skeleton"></div>
-  </div>
-  <div class="card">
-    Total Pengeluaran
-    <div id="totalKeluar" class="stat negative skeleton"></div>
-  </div>
-  <div class="card">
-    Saldo Akhir
-    <div id="saldoAkhir" class="stat skeleton"></div>
-  </div>
+  <div class="card">Total Pemasukan<div id="totalMasuk" class="stat positive"></div></div>
+  <div class="card">Total Pengeluaran<div id="totalKeluar" class="stat negative"></div></div>
+  <div class="card">Saldo Akhir<div id="saldoAkhir" class="stat"></div></div>
 </div>
 
 <div class="card"><canvas id="lineChart"></canvas></div>
@@ -160,19 +149,35 @@ th{background:#334155;}
 <script>
 const sheetURL="https://docs.google.com/spreadsheets/d/e/2PACX-1vRSBdvTbdRKQ1aO6HYM9sHCvAKXjAWKEMWtv_y0PUv4-IE53eqYZcn2SOlLG0kDzM1pgUrEEP-Fwoan/pub?gid=0&single=true&output=csv";
 
-window.lineChart=null;
-window.barChart=null;
-window.donutChart=null;
-window.saldoChart=null;
-
+let charts = {};
 let allData=[];
+let refreshTimer=null;
+
+function showLoading(show){
+  document.querySelectorAll(".card").forEach(card=>{
+    let l=card.querySelector(".loading");
+    if(show){
+      if(!l){
+        l=document.createElement("div");
+        l.className="loading";
+        l.innerText="Loading data...";
+        card.appendChild(l);
+      }
+    }else{
+      if(l) l.remove();
+    }
+  });
+}
 
 function loadData(){
+  showLoading(true);
+
   Papa.parse(sheetURL,{
     download:true,
     header:true,
     skipEmptyLines:true,
     complete:function(results){
+
       allData=[];
       results.data.forEach(r=>{
         if(!r.tanggal) return;
@@ -185,7 +190,9 @@ function loadData(){
           keluar:parseInt((r.pengeluaran||"0").replace(/\D/g,''))||0
         });
       });
+
       render();
+      showLoading(false);
     }
   });
 }
@@ -193,6 +200,14 @@ function loadData(){
 document.getElementById("filter").addEventListener("change",render);
 
 function render(){
+
+  if(!allData.length){
+    document.getElementById("tbody").innerHTML=
+      `<tr><td colspan="4" style="text-align:center">Tidak ada data</td></tr>`;
+    destroyCharts();
+    return;
+  }
+
   const filter=document.getElementById("filter").value;
   const now=new Date();
 
@@ -247,86 +262,75 @@ function render(){
     `;
   });
 
-  animate("totalMasuk",totalMasuk);
-  animate("totalKeluar",totalKeluar);
-  animate("saldoAkhir",saldo);
+  document.getElementById("totalMasuk").innerText="Rp "+totalMasuk.toLocaleString();
+  document.getElementById("totalKeluar").innerText="Rp "+totalKeluar.toLocaleString();
+  document.getElementById("saldoAkhir").innerText="Rp "+saldo.toLocaleString();
 
   destroyCharts();
 
-  setTimeout(()=>{
-    window.lineChart=new Chart(lineChart,{
-      type:"line",
-      data:{labels:labels,
-        datasets:[
-          {label:"Pemasukan",data:masukArr,borderColor:"#22c55e"},
-          {label:"Pengeluaran",data:keluarArr,borderColor:"#ef4444"}
-        ]},
-      options:{responsive:true,maintainAspectRatio:false}
-    });
+  const ctxLine=document.getElementById("lineChart").getContext("2d");
+  const ctxSaldo=document.getElementById("saldoChart").getContext("2d");
+  const ctxBar=document.getElementById("barChart").getContext("2d");
+  const ctxDonut=document.getElementById("donutChart").getContext("2d");
 
-    window.saldoChart=new Chart(saldoChart,{
-      type:"line",
-      data:{labels:labels,
-        datasets:[
-          {label:"Saldo",data:saldoArr,borderColor:"#3b82f6"}
-        ]},
-      options:{responsive:true,maintainAspectRatio:false}
-    });
+  const gradient=ctxLine.createLinearGradient(0,0,0,300);
+  gradient.addColorStop(0,"rgba(34,197,94,0.6)");
+  gradient.addColorStop(1,"rgba(34,197,94,0)");
 
-    const mLabels=Object.keys(monthly);
-    const mMasuk=mLabels.map(m=>monthly[m].masuk);
-    const mKeluar=mLabels.map(m=>monthly[m].keluar);
+  charts.line=new Chart(ctxLine,{
+    type:"line",
+    data:{labels:labels,
+      datasets:[{label:"Pemasukan",data:masukArr,fill:true,backgroundColor:gradient,borderColor:"#22c55e"},
+                {label:"Pengeluaran",data:keluarArr,borderColor:"#ef4444"}]},
+    options:{responsive:true,maintainAspectRatio:false}
+  });
 
-    window.barChart=new Chart(barChart,{
-      type:"bar",
-      data:{labels:mLabels,
-        datasets:[
-          {label:"Masuk",data:mMasuk,backgroundColor:"#22c55e"},
-          {label:"Keluar",data:mKeluar,backgroundColor:"#ef4444"}
-        ]},
-      options:{responsive:true,maintainAspectRatio:false}
-    });
+  charts.saldo=new Chart(ctxSaldo,{
+    type:"line",
+    data:{labels:labels,
+      datasets:[{label:"Saldo",data:saldoArr,borderColor:"#3b82f6"}]},
+    options:{responsive:true,maintainAspectRatio:false}
+  });
 
-    window.donutChart=new Chart(donutChart,{
-      type:"doughnut",
-      data:{
-        labels:["Masuk","Keluar"],
-        datasets:[{
-          data:[totalMasuk,totalKeluar],
-          backgroundColor:["#22c55e","#ef4444"]
-        }]
-      }
-    });
+  const mLabels=Object.keys(monthly);
+  charts.bar=new Chart(ctxBar,{
+    type:"bar",
+    data:{labels:mLabels,
+      datasets:[
+        {label:"Masuk",data:mLabels.map(m=>monthly[m].masuk),backgroundColor:"#22c55e"},
+        {label:"Keluar",data:mLabels.map(m=>monthly[m].keluar),backgroundColor:"#ef4444"}
+      ]},
+    options:{responsive:true,maintainAspectRatio:false}
+  });
 
-  },200);
+  charts.donut=new Chart(ctxDonut,{
+    type:"doughnut",
+    data:{
+      labels:["Masuk","Keluar"],
+      datasets:[{
+        data:[totalMasuk,totalKeluar],
+        backgroundColor:["#22c55e","#ef4444"]
+      }]
+    }
+  });
 }
 
 function destroyCharts(){
-  if(window.lineChart instanceof Chart) window.lineChart.destroy();
-  if(window.barChart instanceof Chart) window.barChart.destroy();
-  if(window.donutChart instanceof Chart) window.donutChart.destroy();
-  if(window.saldoChart instanceof Chart) window.saldoChart.destroy();
-}
-
-function animate(id,value){
-  const el=document.getElementById(id);
-  el.classList.remove("skeleton");
-  let start=0;
-  const step=value/40;
-  const timer=setInterval(()=>{
-    start+=step;
-    if(start>=value){start=value;clearInterval(timer);}
-    el.innerHTML="Rp "+Math.floor(start).toLocaleString();
-  },20);
+  Object.values(charts).forEach(c=>{
+    if(c instanceof Chart) c.destroy();
+  });
+  charts={};
 }
 
 function exportPDF(){
-  const element=document.getElementById("dashboard");
-  html2pdf().from(element).save("Laporan_Keuangan_RT.pdf");
+  html2pdf().from(document.getElementById("dashboard"))
+    .save("Laporan_Keuangan_RT.pdf");
 }
 
 loadData();
-setInterval(loadData,60000);
+
+if(refreshTimer) clearInterval(refreshTimer);
+refreshTimer=setInterval(loadData,60000);
 </script>
 
 </body>
