@@ -145,23 +145,39 @@ function fetchData(){
     const rows=data.trim().split("\n").slice(1);
 
     rows.forEach(r=>{
-      if(!r) return;
+  if(!r.trim()) return;
 
-      const c=r.split(",");
-      if(c.length<4) return;
+  const c=r.split(",");
 
-      const parts=c[0].trim().split("-");
-      if(parts.length!==3) return;
+  // pastikan minimal 4 kolom
+  while(c.length < 4){
+    c.push("0");
+  }
 
-      const tanggalFix=new Date(parts[0],parts[1]-1,parts[2]);
+  const tanggalStr = (c[0] || "").trim();
+  const ket = (c[1] || "").trim();
 
-      allData.push({
-        tanggal:tanggalFix,
-        ket:c[1].trim(),
-        masuk:parseInt(c[2].replace(/\D/g,''))||0,
-        keluar:parseInt(c[3].replace(/\D/g,''))||0
-      });
-    });
+  if(!tanggalStr) return;
+
+  const parts = tanggalStr.split("-");
+  if(parts.length !== 3) return;
+
+  const tanggalFix = new Date(
+    parseInt(parts[0]),
+    parseInt(parts[1]) - 1,
+    parseInt(parts[2])
+  );
+
+  const masuk = parseInt((c[2] || "0").replace(/\D/g,'')) || 0;
+  const keluar = parseInt((c[3] || "0").replace(/\D/g,'')) || 0;
+
+  allData.push({
+    tanggal: tanggalFix,
+    ket: ket,
+    masuk: masuk,
+    keluar: keluar
+  });
+});
 
     render();
   });
