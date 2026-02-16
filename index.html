@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RT 02 RW 03 Dashboard</title>
+<style>
+body{
+  margin:0;
+  font-family: 'Segoe UI', sans-serif;
+  background:#0f172a;
+  color:white;
+}
+.container{
+  max-width:1100px;
+  margin:auto;
+  padding:40px 20px;
+}
+h1{
+  text-align:center;
+  margin-bottom:40px;
+}
+.grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:20px;
+}
+.card{
+  background:#1e293b;
+  padding:25px;
+  border-radius:16px;
+  text-align:center;
+  box-shadow:0 10px 25px rgba(0,0,0,0.4);
+  transition:0.3s;
+}
+.card:hover{
+  transform:translateY(-5px);
+}
+.title{
+  font-size:14px;
+  color:#94a3b8;
+}
+.value{
+  font-size:26px;
+  font-weight:bold;
+  margin-top:10px;
+}
+.progress-container{
+  margin-top:50px;
+}
+.progress-bar-bg{
+  background:#1e293b;
+  height:25px;
+  border-radius:20px;
+  overflow:hidden;
+}
+.progress-bar{
+  height:100%;
+  width:0%;
+  background:linear-gradient(90deg,#2563eb,#3b82f6);
+  transition:width 1.5s ease;
+}
+.percent{
+  text-align:center;
+  margin-top:10px;
+  font-weight:bold;
+}
+.footer{
+  text-align:center;
+  margin-top:60px;
+  font-size:12px;
+  color:#94a3b8;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+<h1>RT 02 RW 03<br>Dusun Krajan – Desa Jambewangi</h1>
+
+<div class="grid" id="cards"></div>
+
+<div class="progress-container">
+<h3 style="text-align:center;">Progress Iuran Bulanan</h3>
+<div class="progress-bar-bg">
+<div class="progress-bar" id="progress"></div>
+</div>
+<p class="percent" id="percentText"></p>
+</div>
+
+<div class="footer">
+Dashboard otomatis terhubung Google Sheets
+</div>
+
+</div>
+
+<script>
+const sheetURL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRSBdvTbdRKQ1aO6HYM9sHCvAKXjAWKEMWtv_y0PUv4-IE53eqYZcn2SOlLG0kDzM1pgUrEEP-Fwoan/pub?gid=0&single=true&output=csv";
+
+async function loadData(){
+  const res = await fetch(sheetURL);
+  const text = await res.text();
+  const rows = text.split("\n").map(r=>r.split(","));
+  let data={};
+  rows.forEach(r=>data[r[0].trim()]=parseFloat(r[1]));
+
+  const totalKK = data.total_kk;
+  const sudah = data.sudah_bayar;
+  const perKK = data.iuran_per_kk;
+  const realisasi = data.realisasi;
+
+  const target = totalKK * perKK;
+  const belum = totalKK - sudah;
+  const percent = Math.round((realisasi/target)*100);
+
+  const cards = `
+  ${card("Total KK", totalKK)}
+  ${card("Sudah Bayar", sudah)}
+  ${card("Belum Bayar", belum)}
+  ${card("Target", rupiah(target))}
+  ${card("Realisasi", rupiah(realisasi))}
+  `;
+
+  document.getElementById("cards").innerHTML = cards;
+  document.getElementById("percentText").innerText = percent + "% Tercapai";
+
+  setTimeout(()=>{
+    document.getElementById("progress").style.width = percent+"%";
+  },300);
+}
+
+function card(title,value){
+  return `<div class="card">
+    <div class="title">${title}</div>
+    <div class="value">${value}</div>
+  </div>`;
+}
+
+function rupiah(num){
+  return "Rp "+num.toLocaleString("id-ID");
+}
+
+loadData();
+</script>
+
+</body>
+</html>
