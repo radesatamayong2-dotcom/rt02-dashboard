@@ -113,9 +113,11 @@ button{
 Filter:
 <select id="filter">
   <option value="all">Semua</option>
+  <option value="week">Minggu Ini</option>
   <option value="month">Bulan Ini</option>
   <option value="year">Tahun Ini</option>
 </select>
+
 <button onclick="exportPDF()">Export PDF</button>
 </div>
 
@@ -177,15 +179,25 @@ function render(){
   const now = new Date();
 
   let data = allData.filter(d=>{
-    if(filter==="month"){
-      return d.tanggal.getMonth()===now.getMonth() &&
-             d.tanggal.getFullYear()===now.getFullYear();
-    }
-    if(filter==="year"){
-      return d.tanggal.getFullYear()===now.getFullYear();
-    }
-    return true;
-  });
+  if(filter==="week"){
+    const today = new Date();
+    const firstDay = new Date(today);
+    firstDay.setDate(today.getDate() - today.getDay()); 
+    firstDay.setHours(0,0,0,0);
+    return d.tanggal >= firstDay;
+  }
+
+  if(filter==="month"){
+    return d.tanggal.getMonth()===now.getMonth() &&
+           d.tanggal.getFullYear()===now.getFullYear();
+  }
+
+  if(filter==="year"){
+    return d.tanggal.getFullYear()===now.getFullYear();
+  }
+
+  return true;
+});
 
   let totalMasuk=0;
   let totalKeluar=0;
