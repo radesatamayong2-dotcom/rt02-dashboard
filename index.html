@@ -1,332 +1,160 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Dashboard Keuangan RT</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard RT - FINAL PRO PLUS</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 
 <style>
 body{
-  margin:0;
-  font-family:'Segoe UI',sans-serif;
-  background:linear-gradient(135deg,#0f172a,#1e293b);
-  color:white;
+    font-family: Arial;
+    background:#f4f6f9;
+    margin:20px;
 }
-
-.container{
-  max-width:1300px;
-  margin:auto;
-  padding:25px;
-}
-
-h1{margin-bottom:10px;}
-
-.topbar{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  flex-wrap:wrap;
-  gap:10px;
-}
-
-button{
-  padding:10px 15px;
-  border:none;
-  border-radius:10px;
-  background:#3b82f6;
-  color:white;
-  cursor:pointer;
-}
-
-.grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
-  gap:20px;
-  margin:20px 0;
-}
-
 .card{
-  background:#1e293b;
-  padding:20px;
-  border-radius:20px;
-  box-shadow:0 10px 30px rgba(0,0,0,0.4);
+    background:white;
+    padding:20px;
+    border-radius:12px;
+    box-shadow:0 5px 20px rgba(0,0,0,0.08);
+    margin-bottom:20px;
 }
-
-.stat{
-  font-size:26px;
-  font-weight:bold;
-  margin-top:10px;
+h2{
+    margin-bottom:15px;
 }
-
-.positive{color:#22c55e;}
-.negative{color:#ef4444;}
-
-canvas{
-  width:100%!important;
-  height:300px!important;
+button{
+    padding:10px 15px;
+    border:none;
+    border-radius:8px;
+    background:#2c7be5;
+    color:white;
+    cursor:pointer;
 }
-
-select{
-  padding:8px 12px;
-  border-radius:10px;
-  border:none;
+button:hover{
+    opacity:0.9;
 }
-
 table{
-  width:100%;
-  border-collapse:collapse;
-  margin-top:15px;
+    width:100%;
+    border-collapse:collapse;
+    margin-top:15px;
 }
-
-th,td{
-  padding:10px;
-  border-bottom:1px solid #334155;
-}
-
-th{background:#334155;}
-
-.skeleton{
-  background: linear-gradient(90deg,#1e293b 25%,#334155 50%,#1e293b 75%);
-  background-size:200% 100%;
-  animation: loading 1.5s infinite;
-  border-radius:10px;
-  height:25px;
-}
-
-@keyframes loading{
-  0%{background-position:200% 0;}
-  100%{background-position:-200% 0;}
+table th, table td{
+    padding:8px;
+    border:1px solid #ddd;
+    text-align:center;
 }
 </style>
 </head>
-
 <body>
 
-<div class="container" id="dashboard">
-
-<div class="topbar">
-  <h1>💳 Dashboard Keuangan RT</h1>
-  <div>
-    <select id="filter">
-      <option value="all">Semua</option>
-      <option value="week">Minggu Ini</option>
-      <option value="month">Bulan Ini</option>
-      <option value="year">Tahun Ini</option>
-    </select>
-    <button onclick="exportPDF()">Export PDF</button>
-  </div>
+<div class="card">
+    <h2>Upload Data CSV</h2>
+    <input type="file" id="fileInput" accept=".csv">
 </div>
-
-<div class="grid">
-  <div class="card">
-    Total Pemasukan
-    <div id="totalMasuk" class="stat positive skeleton"></div>
-  </div>
-  <div class="card">
-    Total Pengeluaran
-    <div id="totalKeluar" class="stat negative skeleton"></div>
-  </div>
-  <div class="card">
-    Saldo Akhir
-    <div id="saldoAkhir" class="stat skeleton"></div>
-  </div>
-</div>
-
-<div class="card"><canvas id="lineChart"></canvas></div>
-<div class="card"><canvas id="saldoChart"></canvas></div>
-<div class="card"><canvas id="barChart"></canvas></div>
-<div class="card"><canvas id="donutChart"></canvas></div>
 
 <div class="card">
-<h3>📋 Tabel Transaksi</h3>
-<table>
-<thead>
-<tr>
-<th>Tanggal</th>
-<th>Pemasukan</th>
-<th>Pengeluaran</th>
-<th>Saldo</th>
-</tr>
-</thead>
-<tbody id="tbody"></tbody>
-</table>
+    <h2>Grafik Iuran</h2>
+    <canvas id="myChart"></canvas>
 </div>
 
+<div class="card">
+    <h2>Tabel Data</h2>
+    <div id="tableContainer"></div>
+    <button onclick="exportPDF()">Export PDF</button>
 </div>
 
 <script>
-const sheetURL="https://docs.google.com/spreadsheets/d/e/2PACX-1vRSBdvTbdRKQ1aO6HYM9sHCvAKXjAWKEMWtv_y0PUv4-IE53eqYZcn2SOlLG0kDzM1pgUrEEP-Fwoan/pub?gid=0&single=true&output=csv";
+let chartInstance = null;
+let globalData = [];
 
-window.lineChart=null;
-window.barChart=null;
-window.donutChart=null;
-window.saldoChart=null;
+document.getElementById("fileInput").addEventListener("change", function(e){
+    const file = e.target.files[0];
+    if(!file) return;
 
-let allData=[];
+    Papa.parse(file, {
+        header:true,
+        skipEmptyLines:true,
+        complete: function(results){
+            globalData = results.data;
+            renderTable(globalData);
+            renderChart(globalData);
+        }
+    });
+});
 
-function loadData(){
-  Papa.parse(sheetURL,{
-    download:true,
-    header:true,
-    skipEmptyLines:true,
-    complete:function(results){
-      allData=[];
-      results.data.forEach(r=>{
-        if(!r.tanggal) return;
-        const t=new Date(r.tanggal.trim());
-        if(isNaN(t)) return;
+function renderChart(data){
 
-        allData.push({
-          tanggal:t,
-          masuk:parseInt((r.pemasukan||"0").replace(/\D/g,''))||0,
-          keluar:parseInt((r.pengeluaran||"0").replace(/\D/g,''))||0
+    const canvas = document.getElementById("myChart");
+    if(!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if(!ctx) return;
+
+    const labels = data.map(d => d.Nama);
+    const values = data.map(d => parseInt(d.Jumlah));
+
+    if(chartInstance){
+        chartInstance.destroy();
+    }
+
+    chartInstance = new Chart(ctx, {
+        type:"bar",
+        data:{
+            labels:labels,
+            datasets:[{
+                label:"Jumlah Iuran",
+                data:values
+            }]
+        },
+        options:{
+            responsive:true,
+            plugins:{
+                legend:{ display:true }
+            }
+        }
+    });
+}
+
+function renderTable(data){
+    let html = "<table><tr>";
+
+    Object.keys(data[0]).forEach(key=>{
+        html += "<th>"+key+"</th>";
+    });
+
+    html += "</tr>";
+
+    data.forEach(row=>{
+        html += "<tr>";
+        Object.values(row).forEach(val=>{
+            html += "<td>"+val+"</td>";
         });
-      });
-      render();
-    }
-  });
-}
-
-document.getElementById("filter").addEventListener("change",render);
-
-function render(){
-  const filter=document.getElementById("filter").value;
-  const now=new Date();
-
-  let data=allData.filter(d=>{
-    if(filter==="week"){
-      const first=new Date();
-      first.setDate(now.getDate()-now.getDay());
-      first.setHours(0,0,0,0);
-      return d.tanggal>=first;
-    }
-    if(filter==="month"){
-      return d.tanggal.getMonth()===now.getMonth() &&
-             d.tanggal.getFullYear()===now.getFullYear();
-    }
-    if(filter==="year"){
-      return d.tanggal.getFullYear()===now.getFullYear();
-    }
-    return true;
-  });
-
-  let totalMasuk=0,totalKeluar=0,saldo=0;
-  let labels=[],masukArr=[],keluarArr=[],saldoArr=[];
-  let monthly={};
-
-  const tbody=document.getElementById("tbody");
-  tbody.innerHTML="";
-
-  data.sort((a,b)=>a.tanggal-b.tanggal);
-
-  data.forEach(d=>{
-    totalMasuk+=d.masuk;
-    totalKeluar+=d.keluar;
-    saldo+=d.masuk-d.keluar;
-
-    labels.push(d.tanggal.toLocaleDateString());
-    masukArr.push(d.masuk);
-    keluarArr.push(d.keluar);
-    saldoArr.push(saldo);
-
-    const key=d.tanggal.getFullYear()+"-"+(d.tanggal.getMonth()+1);
-    if(!monthly[key]) monthly[key]={masuk:0,keluar:0};
-    monthly[key].masuk+=d.masuk;
-    monthly[key].keluar+=d.keluar;
-
-    tbody.innerHTML+=`
-      <tr>
-        <td>${d.tanggal.toLocaleDateString()}</td>
-        <td class="positive">Rp ${d.masuk.toLocaleString()}</td>
-        <td class="negative">Rp ${d.keluar.toLocaleString()}</td>
-        <td>Rp ${saldo.toLocaleString()}</td>
-      </tr>
-    `;
-  });
-
-  animate("totalMasuk",totalMasuk);
-  animate("totalKeluar",totalKeluar);
-  animate("saldoAkhir",saldo);
-
-  destroyCharts();
-
-  setTimeout(()=>{
-    window.lineChart=new Chart(lineChart,{
-      type:"line",
-      data:{labels:labels,
-        datasets:[
-          {label:"Pemasukan",data:masukArr,borderColor:"#22c55e"},
-          {label:"Pengeluaran",data:keluarArr,borderColor:"#ef4444"}
-        ]},
-      options:{responsive:true,maintainAspectRatio:false}
+        html += "</tr>";
     });
 
-    window.saldoChart=new Chart(saldoChart,{
-      type:"line",
-      data:{labels:labels,
-        datasets:[
-          {label:"Saldo",data:saldoArr,borderColor:"#3b82f6"}
-        ]},
-      options:{responsive:true,maintainAspectRatio:false}
-    });
+    html += "</table>";
 
-    const mLabels=Object.keys(monthly);
-    const mMasuk=mLabels.map(m=>monthly[m].masuk);
-    const mKeluar=mLabels.map(m=>monthly[m].keluar);
-
-    window.barChart=new Chart(barChart,{
-      type:"bar",
-      data:{labels:mLabels,
-        datasets:[
-          {label:"Masuk",data:mMasuk,backgroundColor:"#22c55e"},
-          {label:"Keluar",data:mKeluar,backgroundColor:"#ef4444"}
-        ]},
-      options:{responsive:true,maintainAspectRatio:false}
-    });
-
-    window.donutChart=new Chart(donutChart,{
-      type:"doughnut",
-      data:{
-        labels:["Masuk","Keluar"],
-        datasets:[{
-          data:[totalMasuk,totalKeluar],
-          backgroundColor:["#22c55e","#ef4444"]
-        }]
-      }
-    });
-
-  },200);
-}
-
-function destroyCharts(){
-  if(window.lineChart instanceof Chart) window.lineChart.destroy();
-  if(window.barChart instanceof Chart) window.barChart.destroy();
-  if(window.donutChart instanceof Chart) window.donutChart.destroy();
-  if(window.saldoChart instanceof Chart) window.saldoChart.destroy();
-}
-
-function animate(id,value){
-  const el=document.getElementById(id);
-  el.classList.remove("skeleton");
-  let start=0;
-  const step=value/40;
-  const timer=setInterval(()=>{
-    start+=step;
-    if(start>=value){start=value;clearInterval(timer);}
-    el.innerHTML="Rp "+Math.floor(start).toLocaleString();
-  },20);
+    document.getElementById("tableContainer").innerHTML = html;
 }
 
 function exportPDF(){
-  const element=document.getElementById("dashboard");
-  html2pdf().from(element).save("Laporan_Keuangan_RT.pdf");
-}
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
 
-loadData();
-setInterval(loadData,60000);
+    doc.text("Laporan Iuran RT", 10, 10);
+
+    let y = 20;
+
+    globalData.forEach((row)=>{
+        doc.text(Object.values(row).join(" | "), 10, y);
+        y += 8;
+    });
+
+    doc.save("laporan_rt.pdf");
+}
 </script>
 
 </body>
