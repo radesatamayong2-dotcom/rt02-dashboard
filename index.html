@@ -3,8 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RT 02 RW 03 Dashboard</title>
+<title>RT 02 RW 03 Smart Dashboard</title>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <style>
 body{
@@ -14,169 +16,158 @@ body{
   color:white;
 }
 .container{
-  max-width:1100px;
+  max-width:1200px;
   margin:auto;
   padding:40px 20px;
 }
-h1{
-  text-align:center;
-}
-.grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
-  gap:20px;
-  margin-top:40px;
-}
 .card{
   background:#1e293b;
-  padding:25px;
+  padding:20px;
   border-radius:16px;
-  text-align:center;
-  box-shadow:0 10px 25px rgba(0,0,0,0.4);
+  margin-bottom:20px;
 }
-.title{
-  font-size:14px;
-  color:#94a3b8;
+button{
+  padding:10px 20px;
+  margin:5px;
+  border:none;
+  border-radius:8px;
+  background:#2563eb;
+  color:white;
+  cursor:pointer;
 }
-.value{
-  font-size:26px;
-  font-weight:bold;
-  margin-top:10px;
-}
-.progress-bg{
+canvas{
   background:#1e293b;
-  height:25px;
-  border-radius:20px;
-  overflow:hidden;
+  border-radius:16px;
+  padding:20px;
   margin-top:20px;
-}
-.progress-bar{
-  height:100%;
-  width:0%;
-  background:linear-gradient(90deg,#2563eb,#3b82f6);
-  transition:width 1.5s ease;
-}
-.chart-container{
-  margin-top:60px;
-  background:#1e293b;
-  padding:25px;
-  border-radius:16px;
 }
 </style>
 </head>
 
 <body>
-
 <div class="container">
-<h1>RT 02 RW 03<br>Dusun Krajan – Desa Jambewangi</h1>
 
-<div class="grid" id="cards"></div>
+<h1>RT 02 RW 03 - Smart Finance Dashboard</h1>
 
-<h3 style="text-align:center;margin-top:50px;">Progress Iuran Bulanan</h3>
-<div class="progress-bg">
-<div class="progress-bar" id="progress"></div>
+<div class="card">
+<h3>Filter Periode</h3>
+<button onclick="setFilter('week')">Minggu</button>
+<button onclick="setFilter('month')">Bulan</button>
+<button onclick="setFilter('year')">Tahun</button>
+<button onclick="exportPDF()">Export PDF</button>
 </div>
-<p style="text-align:center;font-weight:bold;" id="percentText"></p>
 
-<div class="chart-container">
-<h3 style="text-align:center;">Grafik Keuangan Bulanan</h3>
-<canvas id="chartKeuangan"></canvas>
-</div>
+<canvas id="lineChart"></canvas>
+<canvas id="saldoChart"></canvas>
 
 </div>
 
 <script>
 
 const sheetURL = "PASTE_LINK_CSV_DISINI";
+let transaksi = [];
+let filterMode = "month";
+let lineChart, saldoChart;
 
 async function loadData(){
   const res = await fetch(sheetURL);
   const text = await res.text();
-  const rows = text.trim().split("\n");
+  const rows = text.trim().split("\n").slice(1);
 
-  let data = {};
-  let bulan = [];
-  let pemasukan = [];
-  let pengeluaran = [];
+  transaksi = rows.map(r=>{
+    const cols = r.split(",");
+    return {
+      tanggal: new Date(cols[0]),
+      jenis: cols[1],
+      jumlah: parseFloat(cols[2])
+    };
+  });
 
-  rows.forEach(row=>{
-    const cols = row.split(",");
-    const key = cols[0].trim();
+  renderCharts();
+}
 
-    if(key === "bulan"){
-      bulan = cols.slice(1);
+function setFilter(mode){
+  filterMode = mode;
+  renderCharts();
+}
+
+function groupData(){
+  let map = {};
+
+  transaksi.forEach(t=>{
+    let key;
+
+    if(filterMode === "week"){
+      const week = getWeekNumber(t.tanggal);
+      key = t.tanggal.getFullYear() + "-W" + week;
     }
-    else if(key === "pemasukan"){
-      pemasukan = cols.slice(1).map(Number);
-    }
-    else if(key === "pengeluaran"){
-      pengeluaran = cols.slice(1).map(Number);
+    else if(filterMode === "month"){
+      key = t.tanggal.getFullYear() + "-" + (t.tanggal.getMonth()+1);
     }
     else{
-      data[key] = parseFloat(cols[1]);
+      key = t.tanggal.getFullYear();
     }
+
+    if(!map[key]) map[key] = {pemasukan:0,pengeluaran:0};
+
+    map[key][t.jenis] += t.jumlah;
   });
 
-  const totalKK = data.total_kk || 0;
-  const sudah = data.sudah_bayar || 0;
-  const perKK = data.iuran_per_kk || 0;
-  const realisasi = data.realisasi || 0;
+  return map;
+}
 
-  const target = totalKK * perKK;
-  const belum = totalKK - sudah;
-  const percent = target > 0 ? Math.round((realisasi/target)*100) : 0;
+function renderCharts(){
+  const grouped = groupData();
+  const labels = Object.keys(grouped);
+  const pemasukan = labels.map(k=>grouped[k].pemasukan);
+  const pengeluaran = labels.map(k=>grouped[k].pengeluaran);
 
-  document.getElementById("cards").innerHTML = `
-    ${card("Total KK", totalKK)}
-    ${card("Sudah Bayar", sudah)}
-    ${card("Belum Bayar", belum)}
-    ${card("Target", rupiah(target))}
-    ${card("Realisasi", rupiah(realisasi))}
-  `;
+  if(lineChart) lineChart.destroy();
+  if(saldoChart) saldoChart.destroy();
 
-  document.getElementById("percentText").innerText = percent + "% Tercapai";
-  setTimeout(()=>{ document.getElementById("progress").style.width = percent+"%"; },300);
-
-  new Chart(document.getElementById('chartKeuangan'), {
-    type: 'bar',
-    data: {
-      labels: bulan,
-      datasets: [
-        {
-          label: 'Pemasukan',
-          data: pemasukan,
-          backgroundColor: '#3b82f6'
-        },
-        {
-          label: 'Pengeluaran',
-          data: pengeluaran,
-          backgroundColor: '#ef4444'
-        }
+  lineChart = new Chart(document.getElementById("lineChart"),{
+    type:'line',
+    data:{
+      labels:labels,
+      datasets:[
+        {label:'Pemasukan', data:pemasukan, borderColor:'#3b82f6'},
+        {label:'Pengeluaran', data:pengeluaran, borderColor:'#ef4444'}
       ]
     },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { labels: { color: 'white' } }
-      },
-      scales: {
-        x: { ticks: { color: 'white' } },
-        y: { ticks: { color: 'white' } }
-      }
-    }
+    options:{responsive:true}
   });
 
+  let saldo = 0;
+  const saldoData = labels.map((k,i)=>{
+    saldo += pemasukan[i] - pengeluaran[i];
+    return saldo;
+  });
+
+  saldoChart = new Chart(document.getElementById("saldoChart"),{
+    type:'line',
+    data:{
+      labels:labels,
+      datasets:[
+        {label:'Saldo Kumulatif', data:saldoData, borderColor:'#22c55e'}
+      ]
+    },
+    options:{responsive:true}
+  });
 }
 
-function card(title,value){
-  return `<div class="card">
-    <div class="title">${title}</div>
-    <div class="value">${value}</div>
-  </div>`;
+function getWeekNumber(d){
+  d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1)/7);
 }
 
-function rupiah(num){
-  return "Rp " + num.toLocaleString("id-ID");
+function exportPDF(){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.text("Laporan Keuangan RT 02 RW 03",20,20);
+  doc.save("laporan_rt02.pdf");
 }
 
 loadData();
