@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RT 02 RW 03 Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 body{
@@ -55,10 +56,11 @@ h1{
   background:linear-gradient(90deg,#2563eb,#3b82f6);
   transition:width 1.5s ease;
 }
-.percent{
-  text-align:center;
-  margin-top:10px;
-  font-weight:bold;
+.chart-container{
+  margin-top:60px;
+  background:#1e293b;
+  padding:25px;
+  border-radius:16px;
 }
 </style>
 </head>
@@ -74,57 +76,96 @@ h1{
 <div class="progress-bg">
 <div class="progress-bar" id="progress"></div>
 </div>
-<p class="percent" id="percentText"></p>
+<p style="text-align:center;font-weight:bold;" id="percentText"></p>
+
+<div class="chart-container">
+<h3 style="text-align:center;">Grafik Keuangan Bulanan</h3>
+<canvas id="chartKeuangan"></canvas>
+</div>
 
 </div>
 
 <script>
 
-const sheetURL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRSBdvTbdRKQ1aO6HYM9sHCvAKXjAWKEMWtv_y0PUv4-IE53eqYZcn2SOlLG0kDzM1pgUrEEP-Fwoan/pub?output=csv";
+const sheetURL = "PASTE_LINK_CSV_DISINI";
 
 async function loadData(){
-  try{
-    const res = await fetch(sheetURL);
-    const text = await res.text();
+  const res = await fetch(sheetURL);
+  const text = await res.text();
+  const rows = text.trim().split("\n");
 
-    const rows = text.trim().split("\n");
+  let data = {};
+  let bulan = [];
+  let pemasukan = [];
+  let pengeluaran = [];
 
-    let data = {};
-    rows.forEach(row=>{
-      const cols = row.split(",");
-      const key = cols[0].trim();
-      const value = parseFloat(cols[1]);
-      data[key] = value;
-    });
+  rows.forEach(row=>{
+    const cols = row.split(",");
+    const key = cols[0].trim();
 
-    const totalKK = data["total_kk"] || 0;
-    const sudah = data["sudah_bayar"] || 0;
-    const perKK = data["iuran_per_kk"] || 0;
-    const realisasi = data["realisasi"] || 0;
+    if(key === "bulan"){
+      bulan = cols.slice(1);
+    }
+    else if(key === "pemasukan"){
+      pemasukan = cols.slice(1).map(Number);
+    }
+    else if(key === "pengeluaran"){
+      pengeluaran = cols.slice(1).map(Number);
+    }
+    else{
+      data[key] = parseFloat(cols[1]);
+    }
+  });
 
-    const target = totalKK * perKK;
-    const belum = totalKK - sudah;
-    const percent = target > 0 ? Math.round((realisasi/target)*100) : 0;
+  const totalKK = data.total_kk || 0;
+  const sudah = data.sudah_bayar || 0;
+  const perKK = data.iuran_per_kk || 0;
+  const realisasi = data.realisasi || 0;
 
-    document.getElementById("cards").innerHTML = `
-      ${card("Total KK", totalKK)}
-      ${card("Sudah Bayar", sudah)}
-      ${card("Belum Bayar", belum)}
-      ${card("Target", rupiah(target))}
-      ${card("Realisasi", rupiah(realisasi))}
-    `;
+  const target = totalKK * perKK;
+  const belum = totalKK - sudah;
+  const percent = target > 0 ? Math.round((realisasi/target)*100) : 0;
 
-    document.getElementById("percentText").innerText = percent + "% Tercapai";
+  document.getElementById("cards").innerHTML = `
+    ${card("Total KK", totalKK)}
+    ${card("Sudah Bayar", sudah)}
+    ${card("Belum Bayar", belum)}
+    ${card("Target", rupiah(target))}
+    ${card("Realisasi", rupiah(realisasi))}
+  `;
 
-    setTimeout(()=>{
-      document.getElementById("progress").style.width = percent+"%";
-    },300);
+  document.getElementById("percentText").innerText = percent + "% Tercapai";
+  setTimeout(()=>{ document.getElementById("progress").style.width = percent+"%"; },300);
 
-  }catch(error){
-    document.getElementById("cards").innerHTML =
-      "<div style='color:red;text-align:center;'>Gagal mengambil data dari Google Sheets</div>";
-    console.error(error);
-  }
+  new Chart(document.getElementById('chartKeuangan'), {
+    type: 'bar',
+    data: {
+      labels: bulan,
+      datasets: [
+        {
+          label: 'Pemasukan',
+          data: pemasukan,
+          backgroundColor: '#3b82f6'
+        },
+        {
+          label: 'Pengeluaran',
+          data: pengeluaran,
+          backgroundColor: '#ef4444'
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { labels: { color: 'white' } }
+      },
+      scales: {
+        x: { ticks: { color: 'white' } },
+        y: { ticks: { color: 'white' } }
+      }
+    }
+  });
+
 }
 
 function card(title,value){
