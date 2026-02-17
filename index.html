@@ -183,6 +183,13 @@ th{background:var(--border);}
 
         <button onclick="toggleTheme()">🌗 Tema</button>
         <button onclick="exportPDF()" style="background:#10b981;">📥 Export PDF</button>
+        <button onclick="openIuran()" style="background:#f59e0b;">
+  💰 Ambil Iuran
+</button>
+
+<button onclick="openFormManual()" style="background:#6366f1;">
+  📋 Form Manual
+</button>
       </div>
     </div>
   </div>
@@ -412,6 +419,14 @@ function exportPDF(){
   });
 }
 
+function openIuran(){
+  window.open("https://script.google.com/macros/s/AKfycbyU1E-1GqhXKOT61A4STxUzz5PSaZBdLrWa-6mi4G7h07eoZwJCmsuSB9OdZluoP-VO/exec", "_blank");
+}
+
+function openFormManual(){
+  window.open("https://docs.google.com/forms/d/e/1FAIpQLSdLd50UKP4eVLJv10jjSDQnQt2oUXZQ8fkAJq8-TlDIi5d_wg/viewform?usp=header", "_blank");
+}  
+  
 loadData();
 setInterval(loadData, 60000);
 </script>
