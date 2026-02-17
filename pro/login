@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Login Petugas RT02</title>
+  <meta charset="UTF-8">
+</head>
+<body>
+
+  <h2>Login Petugas</h2>
+
+  <input type="text" id="username" placeholder="Username">
+  <br><br>
+  <input type="password" id="password" placeholder="Password">
+  <br><br>
+  <button id="loginBtn">Login</button>
+
+  <p id="error" style="color:red;"></p>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAZIVBo5z2Vz7Vp8i8-ZZTkAhdsKrU5e9Q",
+      authDomain: "iuran-warga-rt-02-rw-03-c14fa.firebaseapp.com",
+      databaseURL: "https://iuran-warga-rt-02-rw-03-c14fa-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "iuran-warga-rt-02-rw-03-c14fa",
+      storageBucket: "iuran-warga-rt-02-rw-03-c14fa.firebasestorage.app",
+      messagingSenderId: "717148916230",
+      appId: "1:717148916230:web:22981ac3c7df301d4e5187"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    document.getElementById("loginBtn").addEventListener("click", () => {
+      const username = document.getElementById("username").value;
+      const password = document.getElementById("password").value;
+
+      const email = username + "@rt02.local";
+
+      signInWithEmailAndPassword(auth, email, password)
+        .then(() => {
+          window.location.href = "dashboard.html";
+        })
+        .catch(() => {
+          document.getElementById("error").innerText = "Login gagal!";
+        });
+    });
+  </script>
+
+</body>
+</html>
